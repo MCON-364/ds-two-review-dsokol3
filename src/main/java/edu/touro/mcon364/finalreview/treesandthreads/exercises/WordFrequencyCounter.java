@@ -5,36 +5,36 @@ import java.util.stream.*;
 
 /**
  * In-class Exercise 1 - Word Frequency Counter (TreeMap + Streams)
- *
+ * <p>
  * Scenario: you receive a list of words (already lowercased and cleaned).
  * You need to count how many times each word appears and then answer
  * several questions about those counts - all in sorted order.
- *
+ * <p>
  * This exercise practises:
  * - Why TreeMap gives us sorted-key iteration for free.
  * - How Collectors.groupingBy + Collectors.counting builds a frequency map.
  * - How NavigableMap operations (firstKey, lastKey, headMap, tailMap) let us
- *   slice the sorted map without iterating manually.
+ * slice the sorted map without iterating manually.
  * - How a stream pipeline can rank or filter the frequency entries.
- *
+ * <p>
  * Before coding, think about:
  * - If we use HashMap instead of TreeMap, which methods would break, and why?
  * - What is the difference between headMap(key) and headMap(key, true)?
  * - Should getTopN return words with the highest count or the lowest count?
- *
+ * <p>
  * Requirements:
  * - The constructor receives the list of words to analyze.
  * - buildFrequencyMap() returns a TreeMap<String, Long> where every key is a
- *   unique word and every value is how many times that word appeared.
+ * unique word and every value is how many times that word appeared.
  * - getTopN(n) returns the n words with the highest frequency, sorted
- *   descending by count. Ties may appear in any order.
- *   Note that you have to sort the frequency map by value, not by key, to get the top N.
+ * descending by count. Ties may appear in any order.
+ * Note that you have to sort the frequency map by value, not by key, to get the top N.
  * - getWordsStartingWith(prefix) returns a sorted list of all words whose
- *   first character equals the given prefix character (e.g., 'a').
+ * first character equals the given prefix character (e.g., 'a').
  * - getMostFrequentInRange(from, to) returns the word with the highest count
- *   among words in the alphabetical range [from, to] inclusive.
- *   Return Optional.empty() if the range is empty.
- *
+ * among words in the alphabetical range [from, to] inclusive.
+ * Return Optional.empty() if the range is empty.
+ * <p>
  * Do not use explicit loops anywhere. Use streams and collectors instead.
  */
 public class WordFrequencyCounter {
@@ -44,17 +44,26 @@ public class WordFrequencyCounter {
     public WordFrequencyCounter(List<String> words) {
         // TODO: validate that words is not null
         // TODO: store a defensive copy so outside code cannot mutate this object
-        this.words = List.of();
+        if (words == null) {
+            throw new IllegalArgumentException("no words");
+        }
+        this.words = List.copyOf(words);
     }
 
     /**
      * Counts how many times each word appears.
      * The returned map must be sorted alphabetically by word.
+     *
      * @return sorted frequency map
      */
     public TreeMap<String, Long> buildFrequencyMap() {
         // TODO
-        return new TreeMap<>();
+        return words.stream()
+                .collect(Collectors.groupingBy(
+                        w -> w,
+                        TreeMap::new,
+                        Collectors.counting()
+                ));
     }
 
     /**
@@ -65,7 +74,13 @@ public class WordFrequencyCounter {
      */
     public List<String> getTopN(int n) {
         // TODO
-        return List.of();
+        return buildFrequencyMap().entrySet()
+                .stream()
+                .sorted(Map.Entry.comparingByValue(Comparator.reverseOrder()))
+                .limit(n)
+                .map(Map.Entry::getKey)
+                .toList();
+
     }
 
     /**
@@ -77,12 +92,15 @@ public class WordFrequencyCounter {
      */
     public List<String> getWordsStartingWith(char prefix) {
         // TODO
-        return List.of();
+        return buildFrequencyMap().keySet()
+                .stream()
+                .filter(s -> s.charAt(0) == prefix)
+                .sorted()
+                .toList();
     }
 
     /**
      * Finds the most frequent word in the alphabetical range [from, to] inclusive.
-     *
      *
      * @param from lower bound word (inclusive)
      * @param to   upper bound word (inclusive)
@@ -90,6 +108,11 @@ public class WordFrequencyCounter {
      */
     public Optional<String> getMostFrequentInRange(String from, String to) {
         // TODO
-        return Optional.empty();
+        return buildFrequencyMap()
+                .subMap(from, true, to, true)
+                .entrySet()
+                .stream()
+                .max(Map.Entry.comparingByValue())
+                .map(Map.Entry::getKey);
     }
 }

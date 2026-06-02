@@ -49,6 +49,8 @@ public class ConcurrentLeaderboard {
      */
     public void submitScore(ScoreEntry entry) {
        //TODO
+       leaderboard.add(entry);
+       totalSubmissions.incrementAndGet();
     }
 
     /**
@@ -59,7 +61,9 @@ public class ConcurrentLeaderboard {
      */
     public List<ScoreEntry> getTopN(int n) {
         // TODO
-        return List.of();
+        return leaderboard.stream()
+                .limit(n)
+                .collect(Collectors.toUnmodifiableList());
     }
 
     /**
@@ -67,7 +71,7 @@ public class ConcurrentLeaderboard {
      */
     public int getTotalSubmissions() {
         // TODO
-        return 0;
+        return totalSubmissions.get();
     }
 
     /**
@@ -81,6 +85,18 @@ public class ConcurrentLeaderboard {
      */
     public void runSimulation(List<String> players, int scoresEach)
             throws InterruptedException {
+                ExecutorService pool = Executors.newFixedThreadPool(players.size());
+                Random randomNumber = new Random();
+                for (String player : players) {
+                    pool.execute(() -> {
+                        for (int i = 0; i < scoresEach; i++) {
+                            int score = randomNumber.nextInt(1000);
+                            submitScore(new ScoreEntry(player, score, System.currentTimeMillis()));
+                        }
+                    });
+                }
+                pool.shutdown();
+                pool.awaitTermination(1, TimeUnit.MINUTES);
 
     }
 }

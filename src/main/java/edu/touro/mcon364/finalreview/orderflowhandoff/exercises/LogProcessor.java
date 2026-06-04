@@ -4,8 +4,10 @@ import edu.touro.mcon364.finalreview.model.LogLevel;
 import edu.touro.mcon364.finalreview.model.LogMessage;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -76,12 +78,15 @@ public class LogProcessor {
     private final ConcurrentHashMap<LogLevel, AtomicInteger> countsByLevel = new ConcurrentHashMap<>();
     private final List<Thread> workers = new ArrayList<>();
     private volatile boolean running = false;
+    private ExecutorService executor;
 
     /**
      * Accept one message for processing.
      */
     public void submit(LogMessage message) {
         // TODO: implement
+        Objects.requireNonNull(message);
+
         if (running) {
             queue.offer(message);
         }
@@ -93,22 +98,36 @@ public class LogProcessor {
     public void start(int workerCount) {
         // TODO: implement
         //create new pool and start workerCount threads running workerLoop()
-        running = true;
-        ExecutorService executor = Executors.newFixedThreadPool(workerCount);
-        
 
+        if (workerCount <= 0) {
+            throw new IllegalArgumentException("workerCount must be positive");
+        }
+
+        running = true;
+        executor = Executors.newFixedThreadPool(workerCount);
+
+        for (int i = 0; i < workerCount; i++) {
+            executor.submit(() -> {
+                try {
+                    workerLoop();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+        }
     }
 
     /**
      * The work done by one background worker.
      *
      * You may keep this helper method, rename it, or replace it with another
-     * private helper if your design is clearer that way.
+     * private helper if your design is clearer than that.
      */
     private void workerLoop() throws InterruptedException {
         // TODO: implement
         while (running || !queue.isEmpty()) {
             LogMessage message = queue.poll(100, TimeUnit.MILLISECONDS);
+
             if (message != null) {
                 process(message);
             }
@@ -120,6 +139,11 @@ public class LogProcessor {
      */
     private void process(LogMessage message) {
         // TODO: implement
+        totalProcessed.incrementAndGet();
+
+        countsByLevel
+                .computeIfAbsent(message.level(), k -> new AtomicInteger())
+                .incrementAndGet();
     }
 
     /**
@@ -127,6 +151,16 @@ public class LogProcessor {
      */
     public void stop() throws InterruptedException {
         // TODO: implement
+        running = false;
+
+        if (executor != null) {
+            executor.shutdown();
+            executor.awaitTermination(1, TimeUnit.MINUTES);
+        }
+
+        for (Thread t : workers) {
+            t.join();
+        }
     }
 
     /**
@@ -142,6 +176,12 @@ public class LogProcessor {
      */
     public Map<LogLevel, Integer> getCountsByLevel() {
         // TODO: implement
-        return Map.of();
+        Map<LogLevel, Integer> copy = new HashMap<>();
+
+        countsByLevel.forEach(
+                (level, count) -> copy.put(level, count.get())
+        );
+
+        return copy;
     }
 }

@@ -56,6 +56,7 @@ public class ConcurrentEventLog {
      */
     public void logEvent(long timestamp, String message) {
         // TODO
+        log.put(timestamp * 1_000_000L + sequence.getAndIncrement(), message);
     }
 
     /**
@@ -71,6 +72,16 @@ public class ConcurrentEventLog {
     public void runConcurrentSources(List<String> sources, int eventsEach)
             throws InterruptedException {
         // TODO
+        ExecutorService pool = Executors.newFixedThreadPool(sources.size());
+        for (String source : sources) {
+            pool.execute(() -> {
+                for (int i = 0; i < eventsEach; i++) {
+                    logEvent(System.currentTimeMillis(), source + "-" + i);
+                }
+            });
+        }
+        pool.shutdown();
+        pool.awaitTermination(1, TimeUnit.MINUTES);
     }
 
     /**

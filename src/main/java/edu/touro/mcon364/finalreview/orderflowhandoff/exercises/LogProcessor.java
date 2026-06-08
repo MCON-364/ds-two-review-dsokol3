@@ -3,9 +3,7 @@ package edu.touro.mcon364.finalreview.orderflowhandoff.exercises;
 import edu.touro.mcon364.finalreview.model.LogLevel;
 import edu.touro.mcon364.finalreview.model.LogMessage;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.BlockingQueue;
@@ -76,7 +74,6 @@ public class LogProcessor {
     private final BlockingQueue<LogMessage> queue = new LinkedBlockingQueue<>();
     private final AtomicInteger totalProcessed = new AtomicInteger();
     private final ConcurrentHashMap<LogLevel, AtomicInteger> countsByLevel = new ConcurrentHashMap<>();
-    private final List<Thread> workers = new ArrayList<>();
     private volatile boolean running = false;
     private ExecutorService executor;
 
@@ -87,9 +84,11 @@ public class LogProcessor {
         // TODO: implement
         Objects.requireNonNull(message);
 
-        if (running) {
-            queue.offer(message);
+        if (!running) {
+            throw new IllegalStateException("Processor is not running");
         }
+
+        queue.offer(message);
     }
 
     /**
@@ -97,10 +96,14 @@ public class LogProcessor {
      */
     public void start(int workerCount) {
         // TODO: implement
-        //create new pool and start workerCount threads running workerLoop()
+        // create new pool and start workerCount threads running workerLoop()
 
         if (workerCount <= 0) {
             throw new IllegalArgumentException("workerCount must be positive");
+        }
+
+        if (running) {
+            throw new IllegalStateException("Processor already started");
         }
 
         running = true;
@@ -157,10 +160,6 @@ public class LogProcessor {
             executor.shutdown();
             executor.awaitTermination(1, TimeUnit.MINUTES);
         }
-
-        for (Thread t : workers) {
-            t.join();
-        }
     }
 
     /**
@@ -179,9 +178,9 @@ public class LogProcessor {
         Map<LogLevel, Integer> copy = new HashMap<>();
 
         countsByLevel.forEach(
-                (level, count) -> copy.put(level, count.get())
-        );
+                (level, count) -> copy.put(level, count.get()));
 
-        return copy;
+        return Map.copyOf(copy);
+
     }
 }

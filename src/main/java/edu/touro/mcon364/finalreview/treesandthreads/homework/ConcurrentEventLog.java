@@ -56,7 +56,8 @@ public class ConcurrentEventLog {
      */
     public void logEvent(long timestamp, String message) {
         // TODO
-        log.put(timestamp * 1_000_000L + sequence.getAndIncrement(), message);
+        long key = timestamp * 1_000_000L + sequence.getAndIncrement();
+        log.put(key, message);
     }
 
     /**
@@ -73,13 +74,15 @@ public class ConcurrentEventLog {
             throws InterruptedException {
         // TODO
         ExecutorService pool = Executors.newFixedThreadPool(sources.size());
+
         for (String source : sources) {
-            pool.execute(() -> {
+            pool.submit(() -> {
                 for (int i = 0; i < eventsEach; i++) {
                     logEvent(System.currentTimeMillis(), source + "-" + i);
                 }
             });
         }
+
         pool.shutdown();
         pool.awaitTermination(1, TimeUnit.MINUTES);
     }
@@ -90,7 +93,12 @@ public class ConcurrentEventLog {
      */
     public List<String> getEventsAfter(long timestamp) {
         // TODO
-        return List.of();
+        long lowerBound = (timestamp + 1) * 1_000_000L;
+
+        return List.copyOf(
+                log.tailMap(lowerBound, true)
+                        .values()
+        );
     }
 
     /**
@@ -98,7 +106,13 @@ public class ConcurrentEventLog {
      */
     public List<String> getEventsBetween(long from, long to) {
         // TODO
-        return List.of();
+        long lowerBound = from * 1_000_000L;
+        long upperBound = (to + 1) * 1_000_000L;
+
+        return List.copyOf(
+                log.subMap(lowerBound, true, upperBound, false)
+                        .values()
+        );
     }
 
     /**
@@ -106,7 +120,13 @@ public class ConcurrentEventLog {
      */
     public List<String> getMostRecentN(int n) {
         // TODO
-        return List.of();
+        return List.copyOf(
+                log.descendingMap()
+                        .values()
+                        .stream()
+                        .limit(n)
+                        .toList()
+        );
     }
 
     /** Returns the total number of logged events. */
@@ -114,4 +134,3 @@ public class ConcurrentEventLog {
         return log.size();
     }
 }
-

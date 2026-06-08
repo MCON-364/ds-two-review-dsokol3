@@ -1,6 +1,7 @@
 package edu.touro.mcon364.finalreview.treesandthreads.homework;
 
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.*;
 
 /**
@@ -33,7 +34,7 @@ public class StudentGradeBook {
 
     public StudentGradeBook(Map<String, Double> grades) {
         // TODO: validate non-null; store a defensive copy
-        this.grades = Map.of();
+        this.grades = Map.copyOf(Objects.requireNonNull(grades, "grades cannot be null"));
     }
 
     /**
@@ -42,7 +43,7 @@ public class StudentGradeBook {
      */
     public TreeMap<String, Double> buildSortedGradeBook() {
         // TODO
-        return new TreeMap<>();
+        return new TreeMap<>(grades);
     }
 
     /**
@@ -51,7 +52,9 @@ public class StudentGradeBook {
      */
     public DoubleSummaryStatistics getStatistics() {
         // TODO
-        return new DoubleSummaryStatistics();
+        return grades.values().stream()
+            .mapToDouble(Double::doubleValue)
+            .summaryStatistics();
     }
 
     /**
@@ -60,7 +63,19 @@ public class StudentGradeBook {
      */
     public TreeMap<String, Long> getLetterGradeDistribution() {
         // TODO
-        return new TreeMap<>();
+        return grades.values().stream()
+            .map(score -> {
+                if (score >= 90) return "A";
+                else if (score >= 80) return "B";
+                else if (score >= 70) return "C";
+                else if (score >= 60) return "D";
+                else return "F";
+            })
+            .collect(Collectors.groupingBy(
+                Function.identity(),
+                TreeMap::new,
+                Collectors.counting()
+            ));
     }
 
     /**
@@ -68,7 +83,11 @@ public class StudentGradeBook {
      */
     public List<String> getTopStudents(int n) {
         // TODO
-        return List.of();
+        return List.copyOf(grades.entrySet().stream()
+            .sorted(Map.Entry.<String, Double>comparingByValue(Comparator.reverseOrder()))
+            .limit(n)
+            .map(Map.Entry::getKey)
+            .toList());
     }
 
     /**
@@ -77,6 +96,10 @@ public class StudentGradeBook {
      */
     public List<String> getStudentsInScoreRange(double low, double high) {
         // TODO
-        return List.of();
+        return List.copyOf(grades.entrySet().stream()
+            .filter(e -> e.getValue() >= low && e.getValue() <= high)
+            .map(Map.Entry::getKey)
+            .sorted()
+            .toList());
     }
 }

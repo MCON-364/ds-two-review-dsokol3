@@ -2,6 +2,7 @@ package edu.touro.mcon364.finalreview.treesandthreads.homework;
 
 import edu.touro.mcon364.finalreview.treesandthreads.model.Book;
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.*;
 
 /**
@@ -35,8 +36,7 @@ public class LibraryCatalog {
     private final List<Book> books;
 
     public LibraryCatalog(List<Book> books) {
-        // TODO: validate non-null, store a defensive copy
-        this.books = List.of();
+        this.books = List.copyOf(Objects.requireNonNull(books, "books cannot be null"));
     }
 
     /**
@@ -46,7 +46,12 @@ public class LibraryCatalog {
      */
     public TreeMap<String, Book> buildTitleIndex() {
         // TODO
-        return new TreeMap<>();
+        return books.stream()
+            .collect(Collectors.toMap(
+                Book::title,
+                Function.identity(),
+                (b1, b2) -> b1, 
+                TreeMap::new));
     }
 
     /**
@@ -55,7 +60,12 @@ public class LibraryCatalog {
      */
     public TreeMap<String, TreeSet<Book>> buildAuthorIndex() {
         // TODO
-        return new TreeMap<>();
+        return books.stream()
+            .collect(Collectors.groupingBy(
+                Book::author,
+                () -> new TreeMap<>(),
+                Collectors.toCollection(TreeSet::new)
+            ));
     }
 
     /**
@@ -64,7 +74,10 @@ public class LibraryCatalog {
      */
     public List<Book> getBooksPublishedBefore(int year) {
         // TODO
-        return List.of();
+        return List.copyOf(books.stream()
+            .filter(b -> b.year() < year)
+            .sorted(Comparator.comparing(Book::title))
+            .toList());
     }
 
     /**
@@ -73,7 +86,13 @@ public class LibraryCatalog {
      */
     public List<String> getAuthorsWithMoreThan(int n) {
         // TODO
-        return List.of();
+        return List.copyOf(books.stream()
+            .collect(Collectors.groupingBy(Book::author, Collectors.toList()))
+            .entrySet().stream()
+            .filter(e -> e.getValue().size() > n)
+            .map(Map.Entry::getKey)
+            .sorted()
+            .toList());
     }
 
     /**
@@ -82,7 +101,10 @@ public class LibraryCatalog {
      */
     public List<Book> findByTitlePrefix(String prefix) {
         // TODO
-        return List.of();
+        return List.copyOf(books.stream()
+            .filter(b -> b.title().startsWith(prefix))
+            .sorted(Comparator.comparing(Book::title))
+            .toList());
     }
 }
 

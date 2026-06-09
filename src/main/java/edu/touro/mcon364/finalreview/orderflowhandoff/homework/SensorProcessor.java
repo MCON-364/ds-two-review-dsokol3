@@ -2,19 +2,26 @@ package edu.touro.mcon364.finalreview.orderflowhandoff.homework;
 
 import edu.touro.mcon364.finalreview.model.SensorReading;
 
+import java.util.ArrayList;
 import java.util.DoubleSummaryStatistics;
+import java.util.List;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Homework 2 — Sensor reading processor.
  *
  * A monitoring system receives readings from sensors over time. One part of the
- * program submits readings as they arrive. Another part of the program processes
+ * program submits readings as they arrive. Another part of the program
+ * processes
  * those readings using one or more background workers.
  *
  * This class is responsible for coordinating that handoff and for keeping a
  * summary of the readings that were actually processed.
  *
- * The important question is not only "How do we calculate the stats?" It is also:
+ * The important question is not only "How do we calculate the stats?" It is
+ * also:
  * "What happens when readings are being submitted and processed by different
  * threads at the same time?"
  *
@@ -22,13 +29,15 @@ import java.util.DoubleSummaryStatistics;
  * - submit(reading) accepts one new sensor reading for later processing.
  * - start(workerCount) starts workerCount background workers.
  * - workerCount must be greater than 0.
- * - Workers should process submitted readings until the processor is stopped and
- *   all already-submitted readings have been handled.
- * - stop() tells the processor to stop accepting/processing future work and waits
- *   until the workers finish the remaining work.
+ * - Workers should process submitted readings until the processor is stopped
+ * and
+ * all already-submitted readings have been handled.
+ * - stop() tells the processor to stop accepting/processing future work and
+ * waits
+ * until the workers finish the remaining work.
  * - getTotalProcessed() returns how many readings have been processed so far.
  * - getStats() returns summary statistics for the processed reading values:
- *   count, minimum, maximum, sum, and average.
+ * count, minimum, maximum, sum, and average.
  * - Public reporting methods must not expose mutable internal state.
  *
  * Before coding, think about:
@@ -38,10 +47,15 @@ import java.util.DoubleSummaryStatistics;
  * - How will workers know when to keep working and when to stop?
  * - What should happen if getStats() is called while workers are still running?
  * - Is it better to store all processed readings and calculate stats later, or
- *   update numeric summary state as each reading is processed?
- * - If several workers update the same stats, how will those updates stay correct?
+ * update numeric summary state as each reading is processed?
+ * - If several workers update the same stats, how will those updates stay
+ * correct?
  */
 public class SensorProcessor {
+    private final BlockingQueue<SensorReading> queue = new LinkedBlockingQueue<>();
+    private final List<Thread> workers = new ArrayList<>();
+    private volatile boolean running = false;
+    private final DoubleSummaryStatistics stats = new DoubleSummaryStatistics();
 
     /**
      * Accept one sensor reading for processing.
@@ -50,6 +64,9 @@ public class SensorProcessor {
      */
     public void submit(SensorReading reading) {
         // TODO: decide where submitted readings should be stored
+        if (running) {
+            queue.offer(reading);
+        }
     }
 
     /**
@@ -60,7 +77,15 @@ public class SensorProcessor {
      */
     public void start(int workerCount) {
         // TODO: validate workerCount
-        // TODO: start the requested number of workers
+        if (workerCount <= 0) {
+            throw new IllegalArgumentException("workerCount must be positive");
+        }
+        running = true;
+        for (int i = 0; i < workerCount; i++) {
+            Thread worker = new Thread(this::workerLoop);
+            workers.add(worker);
+            worker.start();
+        }
     }
 
     /**
@@ -72,15 +97,35 @@ public class SensorProcessor {
      */
     private void workerLoop() {
         // TODO: implement the worker behavior
+        while (running || !queue.isEmpty()) {
+            try {
+                SensorReading r = queue.poll(100, TimeUnit.MILLISECONDS); // wait briefly
+                if (r != null) {
+                    process(r); // update stats
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+    }
+
+    private synchronized void process(SensorReading r) {
+        stats.accept(r.value());
     }
 
     /**
      * Stop the processor and wait for workers to finish.
      *
-     * @throws InterruptedException if the calling thread is interrupted while waiting
+     * @throws InterruptedException if the calling thread is interrupted while
+     *                              waiting
      */
     public void stop() throws InterruptedException {
         // TODO: signal that work should stop
+        running = false;
+        for (Thread t : workers) {
+            t.join();
+        }
         // TODO: wait for all workers to finish
     }
 
@@ -89,7 +134,7 @@ public class SensorProcessor {
      */
     public int getTotalProcessed() {
         // TODO: return the processed count safely
-        return 0;
+        return (int) stats.getCount();
     }
 
     /**
@@ -100,6 +145,8 @@ public class SensorProcessor {
      */
     public DoubleSummaryStatistics getStats() {
         // TODO: calculate or return the current statistics safely
-        return new DoubleSummaryStatistics();
+        DoubleSummaryStatistics copy = new DoubleSummaryStatistics();
+        copy.combine(stats);
+        return copy;
     }
 }

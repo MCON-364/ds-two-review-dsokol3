@@ -3,7 +3,16 @@ package edu.touro.mcon364.finalreview.orderflowhandoff.exercises;
 import edu.touro.mcon364.finalreview.model.LogLevel;
 import edu.touro.mcon364.finalreview.model.LogMessage;
 
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * LogProcessor.
@@ -27,27 +36,27 @@ import java.util.Map;
  * - start(workerCount) starts exactly workerCount background workers.
  * - workerCount must be positive.
  * - workers should keep processing while the processor is still accepting work
- *   or while there is still unprocessed work waiting.
+ * or while there is still unprocessed work waiting.
  * - stop() tells the processor to stop accepting/expecting more work and waits
- *   until the already-submitted work has been handled.
+ * until the already-submitted work has been handled.
  * - getTotalProcessed() returns how many log messages have been processed.
  * - getCountsByLevel() returns how many processed messages there were for each
- *   LogLevel.
+ * LogLevel.
  * - getCountsByLevel() must not allow callers to mutate this class's internal
- *   state.
+ * state.
  * - The class must behave correctly when multiple threads interact with it.
  *
  * Questions to think about before coding:
  * - Where should submitted messages wait before a worker processes them?
  * - What behavior do we need from that structure: newest first, oldest first,
- *   priority order, or something else?
+ * priority order, or something else?
  * - Which state is shared by multiple threads?
  * - Which operations must be protected so the statistics stay correct?
  * - How will worker threads know when to continue waiting for work and when to
- *   finish?
+ * finish?
  * - What should happen if stop() is called while messages are still waiting?
  * - What should the public getter methods return so outside code cannot damage
- *   the processor's internal state?
+ * the processor's internal state?
  */
 public class LogProcessor {
 
@@ -62,11 +71,24 @@ public class LogProcessor {
      * - count by log level
      */
 
+    private final BlockingQueue<LogMessage> queue = new LinkedBlockingQueue<>();
+    private final AtomicInteger totalProcessed = new AtomicInteger();
+    private final ConcurrentHashMap<LogLevel, AtomicInteger> countsByLevel = new ConcurrentHashMap<>();
+    private volatile boolean running = false;
+    private ExecutorService executor;
+
     /**
      * Accept one message for processing.
      */
     public void submit(LogMessage message) {
         // TODO: implement
+        Objects.requireNonNull(message);
+
+        if (!running) {
+            throw new IllegalStateException("Processor is not running");
+        }
+
+        queue.offer(message);
     }
 
     /**
@@ -74,16 +96,45 @@ public class LogProcessor {
      */
     public void start(int workerCount) {
         // TODO: implement
+        // create new pool and start workerCount threads running workerLoop()
+
+        if (workerCount <= 0) {
+            throw new IllegalArgumentException("workerCount must be positive");
+        }
+
+        if (running) {
+            throw new IllegalStateException("Processor already started");
+        }
+
+        running = true;
+        executor = Executors.newFixedThreadPool(workerCount);
+
+        for (int i = 0; i < workerCount; i++) {
+            executor.submit(() -> {
+                try {
+                    workerLoop();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+        }
     }
 
     /**
      * The work done by one background worker.
      *
      * You may keep this helper method, rename it, or replace it with another
-     * private helper if your design is clearer that way.
+     * private helper if your design is clearer than that.
      */
-    private void workerLoop() {
+    private void workerLoop() throws InterruptedException {
         // TODO: implement
+        while (running || !queue.isEmpty()) {
+            LogMessage message = queue.poll(100, TimeUnit.MILLISECONDS);
+
+            if (message != null) {
+                process(message);
+            }
+        }
     }
 
     /**
@@ -91,6 +142,11 @@ public class LogProcessor {
      */
     private void process(LogMessage message) {
         // TODO: implement
+        totalProcessed.incrementAndGet();
+
+        countsByLevel
+                .computeIfAbsent(message.level(), k -> new AtomicInteger())
+                .incrementAndGet();
     }
 
     /**
@@ -98,6 +154,12 @@ public class LogProcessor {
      */
     public void stop() throws InterruptedException {
         // TODO: implement
+        running = false;
+
+        if (executor != null) {
+            executor.shutdown();
+            executor.awaitTermination(1, TimeUnit.MINUTES);
+        }
     }
 
     /**
@@ -105,7 +167,7 @@ public class LogProcessor {
      */
     public int getTotalProcessed() {
         // TODO: implement
-        return 0;
+        return totalProcessed.get();
     }
 
     /**
@@ -113,6 +175,12 @@ public class LogProcessor {
      */
     public Map<LogLevel, Integer> getCountsByLevel() {
         // TODO: implement
-        return Map.of();
+        Map<LogLevel, Integer> copy = new HashMap<>();
+
+        countsByLevel.forEach(
+                (level, count) -> copy.put(level, count.get()));
+
+        return Map.copyOf(copy);
+
     }
 }

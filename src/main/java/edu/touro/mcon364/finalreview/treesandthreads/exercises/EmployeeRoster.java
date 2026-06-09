@@ -46,10 +46,13 @@ public class EmployeeRoster {
 
     public EmployeeRoster(List<Employee> employees) {
         // TODO: validate non-null, store a defensive copy
-        if (employees == null) {
-            throw new IllegalArgumentException("no employees");
-        }
-        this.employees = List.copyOf(employees);
+        /*
+         * if (employees == null) {
+         * throw new IllegalArgumentException("employees list cannot be null");
+         * }
+         * this.employees = List.copyOf(employees);
+         */
+        this.employees = List.copyOf(Objects.requireNonNull(employees, "employees list cannot be null"));
     }
 
     /**
@@ -63,8 +66,7 @@ public class EmployeeRoster {
                 .collect(Collectors.groupingBy(
                         Employee::department,
                         TreeMap::new,
-                        Collectors.toCollection(TreeSet::new)
-                ));
+                        Collectors.toCollection(TreeSet::new)));
     }
 
     /**
@@ -75,7 +77,8 @@ public class EmployeeRoster {
     public Map<String, Employee> getTopEarnerPerDepartment() {
         // TODO
         return employees.stream()
-                .collect(Collectors.toMap(Employee::department, Function.identity(), BinaryOperator.maxBy(Comparator.comparingInt(Employee::salary))));
+                .collect(Collectors.toMap(Employee::department, Function.identity(),
+                        BinaryOperator.maxBy(Comparator.comparingInt(Employee::salary))));
     }
 
     /**
